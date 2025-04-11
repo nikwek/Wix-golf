@@ -8,102 +8,54 @@ async function tournamentData() {
     return tournamentData.items;
 }
 
-// Function to update the bets table with formatted data
-async function updateBetsTable() {
-    try {
-        // Check if the table exists
-        if (!$w("#betsTable")) {
-            console.error("Element #betsTable not found");
-            return;
-        }
-        
-        // Make table visible
-        $w("#betsTable").show();
-        
-        // Setup column definitions first
-        $w("#betsTable").columns = [
-            {
-                "id": "sponsor",
-                "label": "Sponsor", 
-                "width": 150,
-                "dataPath": "sponsor",
-                "type": "string"
-            },
-            {
-                "id": "bet1_players",
-                "label": "Bet 1 Players",
-                "width": 180,
-                "dataPath": "bet1_players",
-                "type": "string"
-            },
-            {
-                "id": "bet1", 
-                "label": "Amount",
-                "width": 100,
-                "dataPath": "bet1",
-                "type": "string"
-            },
-            {
-                "id": "bet2_players",
-                "label": "Bet 2 Players",
-                "width": 180,
-                "dataPath": "bet2_players", 
-                "type": "string"
-            },
-            {
-                "id": "bet2", 
-                "label": "Amount",
-                "width": 100,
-                "dataPath": "bet2",
-                "type": "string"
-            }
-        ];
-        
-        // Format currency for display
-        const USDollar = new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
+// Function to update player winnings in GolfPicks table
+
+// Modified updatePlayerWinnings to store only numeric values
+
+async function updatePlayerWinnings(filteredLeaderboard) {
+    console.log('Updating player winnings in GolfPicks table...');
+    
+    // Fetch golf winnings data
+    const golfWinningsData = await wixData.query("GolfWinnings").find();
+    const winningsMap = new Map();
+    
+    // Create a map of rank to winnings
+    if (golfWinningsData.items.length > 0) {
+        golfWinningsData.items.forEach(item => {
+            winningsMap.set(item.rank, Number(item.winnings) || 0);
         });
+    }
+    
+    // Create a map of player name to winnings based on their rank
+    const playerWinnings = new Map();
+    filteredLeaderboard.forEach(player => {
+        const winnings = winningsMap.get(player.rank) || 0;
+        playerWinnings.set(player.name, Number(winnings));
+    });
+    
+    // Fetch all golf picks
+    const golfPicksData = await wixData.query("GolfPicks").find();
+    
+    // Update each entry with winnings
+    for (const pick of golfPicksData.items) {
+        // Get winnings for each player
+        const winnings1 = playerWinnings.get(pick.player1) || 0;
+        const winnings2 = playerWinnings.get(pick.player2) || 0;
+        const winnings3 = playerWinnings.get(pick.player3) || 0;
+        const winnings4 = playerWinnings.get(pick.player4) || 0;
         
-        // Fetch data from BetStatus collection
-        const betQueryResult = await wixData.query("BetStatus").find();
-        console.log("Raw BetStatus data:", betQueryResult.items);
+        // Store only numeric values, not formatted strings
+        const updatedPick = {
+            ...pick,  // Spread operator preserves all existing fields
+            winnings1: winnings1,
+            winnings2: winnings2,
+            winnings3: winnings3,
+            winnings4: winnings4
+            // Removed bet1Total and bet2Total formatted fields
+        };
         
-        // Skip everything if no data
-        if (betQueryResult.items.length === 0) {
-            console.error("No data found in BetStatus collection");
-            return;
-        }
-        
-        // Create rows for the table
-        const tableRows = await Promise.all(betQueryResult.items.map(async item => {
-            // Fetch golf picks for this sponsor
-            const pickResult = await wixData.query("GolfPicks")
-                .eq("name", item.sponsor)
-                .find();
-            
-            const pick = pickResult.items.length > 0 ? pickResult.items[0] : null;
-            
-            // Try option 1: Using horizontal format with forward slash
-            return {
-                sponsor: String(item.sponsor || ""),
-                bet1_players: pick ? 
-                    `${pick.player1 || ""} / ${pick.player2 || ""}` : "",
-                bet1: String(USDollar.format(Number(item.projected_amount_bet1) || 0)),
-                bet2_players: pick ? 
-                    `${pick.player3 || ""} / ${pick.player4 || ""}` : "",
-                bet2: String(USDollar.format(Number(item.projected_amount_bet2) || 0))
-            };
-        }));
-        
-        console.log("Setting table rows:", tableRows);
-        
-        // Set the data rows directly
-        $w("#betsTable").rows = tableRows;
-    } catch (error) {
-        console.error("Error updating bets table:", error.message, error.stack);
+        // Update the pick record with winnings while preserving all fields
+        await wixData.update("GolfPicks", updatedPick);
     }
 }
 
@@ -117,13 +69,6 @@ async function isWithinTournamentDates(tournament) {
     const endTime = tournament.endTime.split(':').map(Number);
     const startSeconds = startTime[0] * 3600 + startTime[1] * 60 + startTime[2];
     const endSeconds = endTime[0] * 3600 + endTime[1] * 60 + endTime[2];
-
-    console.log('Current Date:', now);
-    console.log('Tournament Start Date:', startDate);
-    console.log('Tournament End Date:', endDate);
-    console.log('Current Time in Seconds:', nowTime);
-    console.log('Tournament Start Time in Seconds:', startSeconds);
-    console.log('Tournament End Time in Seconds:', endSeconds);
 
     if (now >= startDate && now <= endDate) {
         if (nowTime >= startSeconds && nowTime <= endSeconds) {
@@ -164,22 +109,21 @@ async function fetchPlayerNames() {
 
 // Function to transform the raw leaderboard data into the desired structure
 async function transformLeaderboardData(leaderboardData) {
-    console.log('Transforming leaderboard data...');
     return leaderboardData.map(player => {
         const rounds = player.rounds || [];
         return {
-            rank: player.position || 'N/A',
+            rank: player.position ?? 'N/A',
             player_id: player.player_id,
-            name: `${player.first_name || ''} ${player.last_name || ''}`.trim(),
-            country: player.country || 'N/A',
-            totalScore: player.total_to_par || 'N/A',
-            scoreToday: player.strokes || 'N/A',
-            totalThrough: player.holes_played || 'N/A',
-            R1: rounds.find(round => round.round_number === 1)?.strokes || 'N/A',
-            R2: rounds.find(round => round.round_number === 2)?.strokes || 'N/A',
-            R3: rounds.find(round => round.round_number === 3)?.strokes || 'N/A',
-            R4: rounds.find(round => round.round_number === 4)?.strokes || 'N/A',
-            totalStrokes: player.strokes || 'N/A'
+            name: `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim(),
+            country: player.country ?? 'N/A',
+            totalScore: player.total_to_par ?? 'N/A',
+            scoreToday: player.strokes ?? 'N/A',
+            totalThrough: player.holes_played ?? 'N/A',
+            r1: rounds.find(round => round.round_number === 1)?.strokes ?? 'N/A',
+            r2: rounds.find(round => round.round_number === 2)?.strokes ?? 'N/A',
+            r3: rounds.find(round => round.round_number === 3)?.strokes ?? 'N/A',
+            r4: rounds.find(round => round.round_number === 4)?.strokes ?? 'N/A',
+            totalStrokes: player.strokes ?? 'N/A'
         };
     });
 }
@@ -187,7 +131,6 @@ async function transformLeaderboardData(leaderboardData) {
 // Function to filter the leaderboard based on the player names
 async function filterLeaderboard(leaderboard) {
     const playerNames = await fetchPlayerNames();
-    console.log('Player Names:', playerNames);
     const playerNamesSet = new Set(playerNames);
 
     const filtered = leaderboard.filter(player => {
@@ -195,7 +138,6 @@ async function filterLeaderboard(leaderboard) {
         return playerNamesSet.has(fullName);
     });
 
-    console.log('Filtered Leaderboard:', filtered);
     return filtered;
 }
 
@@ -210,14 +152,12 @@ async function saveToLeaderboard(filteredLeaderboardTable) {
             totalScore: player.totalScore,
             scoreToday: player.scoreToday,
             totalThrough: player.totalThrough,
-            R1: player.R1,
-            R2: player.R2,
-            R3: player.R3,
-            R4: player.R4,
+            r1: player.r1,
+            r2: player.r2,
+            r3: player.r3,
+            r4: player.r4,
             totalStrokes: player.totalStrokes
         };
-
-        console.log('Saving Player Data:', playerData);
 
         try {
             const existingPlayer = await wixData.query("Leaderboard")
@@ -239,98 +179,98 @@ async function saveToLeaderboard(filteredLeaderboardTable) {
     }
 }
 
-// Function to calculate bet status for all sponsors
-async function calculateBetStatus(filteredLeaderboard) {
-    console.log('Calculating bet status...');
-    
-    // Fetch golf winnings data
-    const golfWinningsData = await wixData.query("GolfWinnings").find();
-    const winningsMap = new Map();
-    
-    // Create a map of rank to winnings
-    if (golfWinningsData.items.length > 0) {
-        golfWinningsData.items.forEach(item => {
-            winningsMap.set(item.rank, Number(item.winnings) || 0);
-        });
-    }
-    
-    // Create a map of player_id to winnings based on their rank
-    const playerWinnings = new Map();
-    filteredLeaderboard.forEach(player => {
-        const winnings = winningsMap.get(player.rank) || 0;
-        playerWinnings.set(player.player_id, Number(winnings));
-    });
-    
-    // Fetch golf picks data
-    const golfPicksData = await wixData.query("GolfPicks").find();
-    const betStatus = [];
-    
-    // Calculate bet status for each sponsor
-    if (golfPicksData.items.length > 0) {
-        for (const pick of golfPicksData.items) {
-            // Find players in the leaderboard
-            const player1 = filteredLeaderboard.find(p => p.name === pick.player1);
-            const player2 = filteredLeaderboard.find(p => p.name === pick.player2);
-            const player3 = filteredLeaderboard.find(p => p.name === pick.player3);
-            const player4 = filteredLeaderboard.find(p => p.name === pick.player4);
+// Create currency formatter at the top level, outside all functions
+const USDollar = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0
+});
+
+// Move the helper function outside to avoid inner declarations
+function handleRepeaterItem($item, itemData, textElementId, winnings1, winnings2) {
+    try {
+        // Calculate bet total
+        const value1 = Number(itemData[winnings1]) || 0;
+        const value2 = Number(itemData[winnings2]) || 0;
+        const total = value1 + value2;
+        
+        // Simple string formatting that should always work
+        const formattedValue = "$" + total.toLocaleString();
+        
+        // Try different ways to set the text
+        const textElement = $item(textElementId);
+        if (textElement) {
+            // Try method 1
+            textElement.text = formattedValue;
             
-            // Calculate winnings for bet 1 (player1 + player2)
-            let bet1Winnings = 0;
-            if (player1) bet1Winnings += Number(playerWinnings.get(player1.player_id) || 0);
-            if (player2) bet1Winnings += Number(playerWinnings.get(player2.player_id) || 0);
-            
-            // Calculate winnings for bet 2 (player3 + player4)
-            let bet2Winnings = 0;
-            if (player3) bet2Winnings += Number(playerWinnings.get(player3.player_id) || 0);
-            if (player4) bet2Winnings += Number(playerWinnings.get(player4.player_id) || 0);
-            
-            betStatus.push({
-                sponsor: pick.name,
-                projected_amount_bet1: Number(bet1Winnings),
-                projected_amount_bet2: Number(bet2Winnings)
-            });
+            // Try method 2 (in case method 1 doesn't work)
+            setTimeout(() => {
+                textElement.text = formattedValue;
+            }, 50);
         }
+    } catch (err) {
+        console.error(`Error in handleRepeaterItem: ${err}`);
     }
-    
-    return betStatus;
 }
 
-async function updateBetStatus(betStatus) {
-    console.log('Updating bet status...');
-    
-    for (const status of betStatus) {
-        try {
-            const existingSponsor = await wixData.query("BetStatus")
-                .eq("sponsor", status.sponsor)
-                .find();
+// Format number as dollar amount with commas
+function formatNumber_AsDollar(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// Update setupRepeaters function to use custom formatting
+function setupRepeaters() {
+    try {
+        // Configure first repeater if it exists
+        if ($w("#betRepeater1")) {
+            $w("#betRepeater1").onItemReady(($item, itemData, index) => {
+                // Calculate total winnings
+                const winnings1 = Number(itemData.winnings1) || 0;
+                const winnings2 = Number(itemData.winnings2) || 0;
+                const total = winnings1 + winnings2;
                 
-            if (existingSponsor.items.length > 0) {
-                const sponsorId = existingSponsor.items[0]._id;
-                await wixData.update("BetStatus", {
-                    _id: sponsorId,
-                    sponsor: status.sponsor,
-                    projected_amount_bet1: Number(status.projected_amount_bet1),
-                    projected_amount_bet2: Number(status.projected_amount_bet2)
-                });
-            } else {
-                await wixData.insert("BetStatus", {
-                    sponsor: status.sponsor,
-                    projected_amount_bet1: Number(status.projected_amount_bet1),
-                    projected_amount_bet2: Number(status.projected_amount_bet2)
-                });
-            }
-        } catch (error) {
-            console.error(`Error updating bet status for ${status.sponsor}:`, error);
+                // Format as dollar amount
+                const formattedWinnings = "$" + formatNumber_AsDollar(total);
+                
+                // Set text on the element
+                if ($item("#bet1TotalText")) {
+                    $item("#bet1TotalText").text = formattedWinnings;
+                    console.log(`Set bet1TotalText for index ${index} to ${formattedWinnings}`);
+                }
+            });
         }
+        
+        // Configure second repeater if it exists
+        if ($w("#betRepeater2")) {
+            $w("#betRepeater2").onItemReady(($item, itemData, index) => {
+                // Calculate total winnings
+                const winnings3 = Number(itemData.winnings3) || 0;
+                const winnings4 = Number(itemData.winnings4) || 0;
+                const total = winnings3 + winnings4;
+                
+                // Format as dollar amount
+                const formattedWinnings = "$" + formatNumber_AsDollar(total);
+                
+                // Set text on the element
+                if ($item("#bet2TotalText")) {
+                    $item("#bet2TotalText").text = formattedWinnings;
+                    console.log(`Set bet2TotalText for index ${index} to ${formattedWinnings}`);
+                }
+            });
+        }
+        
+        console.log('Repeaters successfully configured');
+    } catch (error) {
+        console.error('Error setting up repeaters:', error);
     }
 }
 
 $w.onReady(async function () {
+    // Set up repeater handlers right away
+    setupRepeaters();
+    
     try {
-        // First update the bets table
-        await updateBetsTable();
-        
-        // Then handle the tournament data and leaderboard updates
+        // Get tournament data and check if active
         const tournament = await tournamentData();
         if (await isWithinTournamentDates(tournament[0])) {
             try {
@@ -339,16 +279,26 @@ $w.onReady(async function () {
                     // Process leaderboard data
                     const filteredLeaderboard = await filterLeaderboard(leaderboard);
                     const transformedLeaderboard = await transformLeaderboardData(filteredLeaderboard);
+                    
+                    // Save to Leaderboard collection
                     await saveToLeaderboard(transformedLeaderboard);
                     
-                    // Update bet status
-                    const betStatus = await calculateBetStatus(transformedLeaderboard);
-                    await updateBetStatus(betStatus);
+                    // Update player winnings directly in GolfPicks
+                    await updatePlayerWinnings(transformedLeaderboard);
                     
-                    // Refresh the table data after updating bet status
-                    await updateBetsTable(); 
+                    // Make sure to refresh the dataset that populates the repeaters
+                    if ($w("#dataset5")) {
+                        $w("#dataset5").refresh();
+                        console.log("Dataset refreshed");
+                        
+                        // If needed, you could force the repeaters to refresh their data display
+                        setTimeout(() => {
+                            if ($w("#betRepeater1")) $w("#betRepeater1").forceUpdate();
+                            if ($w("#betRepeater2")) $w("#betRepeater2").forceUpdate();
+                        }, 500);
+                    }
                     
-                    console.log('Leaderboard data and bet status saved successfully.');
+                    console.log('Data updated successfully');
                 } else {
                     console.log('No updates to the leaderboard.');
                 }
@@ -362,3 +312,4 @@ $w.onReady(async function () {
         console.error("Error in onReady:", error);
     }
 });
+
