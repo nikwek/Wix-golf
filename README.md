@@ -13,5 +13,5 @@ Wix Collections:
 Golf Leaderboard: Rank | Player ID | Name | Country | SCORE | TODAY | THROUGH | R1 | R2 | R3 | R4 | TOT
 Golf Picks: Name | Player 1 | Player 2 | Player 3 | Player 4 | Winnings 1 | Winnings 2 | Winnings 3 | Winnings 4
 Golf Tournament Data: Name | Tournament ID | Start Date | End Date | Start Time | End Time
-Golf Winnings: Tournament | Rank | Winnings
+Golf Winnings: Rank | Winnings
 ```
