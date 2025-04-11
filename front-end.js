@@ -117,7 +117,7 @@ async function transformLeaderboardData(leaderboardData) {
             name: `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim(),
             country: player.country ?? 'N/A',
             totalScore: player.total_to_par ?? 'N/A',
-            scoreToday: player.strokes ?? 'N/A',
+            scoreToday: rounds.find(round => round.round_number === player.current_round)?.total_to_par ?? 'N/A',
             totalThrough: player.holes_played ?? 'N/A',
             r1: rounds.find(round => round.round_number === 1)?.strokes ?? 'N/A',
             r2: rounds.find(round => round.round_number === 2)?.strokes ?? 'N/A',
@@ -133,10 +133,6 @@ async function filterLeaderboard(leaderboard) {
     console.log('Filtering leaderboard data...');
     const playerNames = await fetchPlayerNames();
     const playerNamesSet = new Set(playerNames);
-    
-    // Debug: Log player names in database for comparison
-    console.log('Players in database:', [...playerNamesSet]);
-    
     const filtered = leaderboard.filter(player => {
         const fullName = `${player.first_name} ${player.last_name}`;
         
