@@ -65,12 +65,12 @@ export const fetchAndCacheLeaderboard = async (tournament) => {
     const leaderboard = await fetchLeaderboardData(tournament);
     if (!leaderboard) return null;
 
-    if (!cachedLeaderboard || JSON.stringify(cachedLeaderboard) !== JSON.stringify(leaderboard)) {
-        cachedLeaderboard = leaderboard;
-        console.log("Leaderboard updated.");
-        return leaderboard;
-    } else {
-        console.log("No changes in leaderboard data.");
-        return null; // No changes
-    }
+    // if (!cachedLeaderboard || JSON.stringify(cachedLeaderboard) !== JSON.stringify(leaderboard)) {
+    //     cachedLeaderboard = leaderboard;
+    //     console.log("Leaderboard updated.");
+    //     return leaderboard;
+    // } else {
+    //     console.log("No changes in leaderboard data.");
+    //     return null; // No changes
+    // }
 };
