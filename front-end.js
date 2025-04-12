@@ -120,7 +120,7 @@ async function transformLeaderboardData(leaderboardData) {
         if (status === "cut") {
             scoreToday = "CUT";
         } else if (status === "notstarted") { 
-            scoreToday = "";
+            scoreToday = "-";
         } else {
             scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par);
         }
