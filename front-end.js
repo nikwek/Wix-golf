@@ -1,5 +1,5 @@
 import wixData from 'wix-data';
-import { fetchAndCacheLeaderboard } from 'backend/back-end';
+import { fetchLeaderboardData } from 'backend/back-end';
 
 // Fetch the tournament data from the collection
 async function tournamentData() {
@@ -111,13 +111,25 @@ async function fetchPlayerNames() {
 async function transformLeaderboardData(leaderboardData) {
     return leaderboardData.map(player => {
         const rounds = player.rounds || [];
+        
+        // Determine player status
+        let status = player.status || "active"; // Default to active if status is not provided
+        
+        // Set scoreToday based on status and round data
+        let scoreToday;
+        if (status === "cut") {
+            scoreToday = "CUT";
+        } else {
+            scoreToday = rounds.find(round => round.round_number === player.current_round)?.total_to_par ?? 'N/A';
+        }
+        
         return {
             rank: player.position ?? 'N/A',
             player_id: player.player_id,
             name: `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim(),
             country: player.country ?? 'N/A',
             totalScore: player.total_to_par ?? 'N/A',
-            scoreToday: rounds.find(round => round.round_number === player.current_round)?.total_to_par ?? 'N/A',
+            scoreToday: scoreToday,
             totalThrough: player.holes_played ?? 'N/A',
             r1: rounds.find(round => round.round_number === 1)?.strokes ?? 'N/A',
             r2: rounds.find(round => round.round_number === 2)?.strokes ?? 'N/A',
@@ -264,7 +276,7 @@ $w.onReady(async function () {
         const tournament = await tournamentData();
         if (await isWithinTournamentDates(tournament[0])) {
             try {
-                const leaderboard = await fetchAndCacheLeaderboard(tournament[0]);
+                const leaderboard = await fetchLeaderboardData(tournament[0]);
                 if (leaderboard) {
                     // Process leaderboard data
                     const filteredLeaderboard = await filterLeaderboard(leaderboard);
