@@ -119,8 +119,10 @@ async function transformLeaderboardData(leaderboardData) {
         let scoreToday;
         if (status === "cut") {
             scoreToday = "CUT";
+        } else if (status === "notstarted") { 
+            scoreToday = "";
         } else {
-            scoreToday = rounds.find(round => round.round_number === player.current_round)?.total_to_par ?? 'N/A';
+            scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par);
         }
         
         return {
