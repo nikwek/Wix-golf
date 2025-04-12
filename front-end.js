@@ -117,12 +117,15 @@ async function transformLeaderboardData(leaderboardData) {
         
         // Set scoreToday based on status and round data
         let scoreToday;
+        let totalThrough;
         if (status === "cut") {
             scoreToday = "CUT";
         } else if (status === "notstarted") { 
             scoreToday = "-";
+            totalThrough = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local);
         } else {
             scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par);
+            totalThrough = String(player.holes_played);
         }
         
         return {
@@ -132,7 +135,7 @@ async function transformLeaderboardData(leaderboardData) {
             country: player.country ?? 'N/A',
             totalScore: player.total_to_par ?? 'N/A',
             scoreToday: scoreToday,
-            totalThrough: player.holes_played ?? 'N/A',
+            totalThrough: totalThrough,
             r1: rounds.find(round => round.round_number === 1)?.strokes ?? 'N/A',
             r2: rounds.find(round => round.round_number === 2)?.strokes ?? 'N/A',
             r3: rounds.find(round => round.round_number === 3)?.strokes ?? 'N/A',
