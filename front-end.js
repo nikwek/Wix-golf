@@ -1,5 +1,5 @@
 import wixData from 'wix-data';
-import { fetchLeaderboardData } from 'backend/back-end';
+import { fetchLeaderboardData, saveLeaderboardData, updatePlayerWinnings, simpleTest } from 'backend/back-end';
 
 // Fetch the tournament data from the collection
 async function tournamentData() {
@@ -8,67 +8,22 @@ async function tournamentData() {
     return tournamentData.items;
 }
 
-// Function to update player winnings in GolfPicks table
-
-// Modified updatePlayerWinnings to store only numeric values
-
-async function updatePlayerWinnings(filteredLeaderboard) {
-    console.log('Updating player winnings in GolfPicks table...');
-    
-    // Fetch golf winnings data
-    const golfWinningsData = await wixData.query("GolfWinnings").find();
-    const winningsMap = new Map();
-    
-    // Create a map of rank to winnings
-    if (golfWinningsData.items.length > 0) {
-        golfWinningsData.items.forEach(item => {
-            winningsMap.set(item.rank, Number(item.winnings) || 0);
-        });
-    }
-    
-    // Create a map of player name to winnings based on their rank
-    const playerWinnings = new Map();
-    filteredLeaderboard.forEach(player => {
-        const winnings = winningsMap.get(player.rank) || 0;
-        playerWinnings.set(player.name, Number(winnings));
-    });
-    
-    // Fetch all golf picks
-    const golfPicksData = await wixData.query("GolfPicks").find();
-    
-    // Update each entry with winnings
-    for (const pick of golfPicksData.items) {
-        // Get winnings for each player
-        const winnings1 = playerWinnings.get(pick.player1) || 0;
-        const winnings2 = playerWinnings.get(pick.player2) || 0;
-        const winnings3 = playerWinnings.get(pick.player3) || 0;
-        const winnings4 = playerWinnings.get(pick.player4) || 0;
-        
-        // Store only numeric values, not formatted strings
-        const updatedPick = {
-            ...pick,  // Spread operator preserves all existing fields
-            winnings1: winnings1,
-            winnings2: winnings2,
-            winnings3: winnings3,
-            winnings4: winnings4
-            // Removed bet1Total and bet2Total formatted fields
-        };
-        
-        // Update the pick record with winnings while preserving all fields
-        await wixData.update("GolfPicks", updatedPick);
-    }
-}
-
 // Function to check if the current date and time is within the tournament dates and times
 async function isWithinTournamentDates(tournament) {
     const now = new Date();
+    
+    // Fix the date handling by explicitly setting to local midnight
     const startDate = new Date(tournament.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    
     const endDate = new Date(tournament.endDate);
+    endDate.setHours(23, 59, 59, 999);  // Set to end of day
+    
     const nowTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
     const startTime = tournament.startTime.split(':').map(Number);
     const endTime = tournament.endTime.split(':').map(Number);
-    const startSeconds = startTime[0] * 3600 + startTime[1] * 60 + startTime[2];
-    const endSeconds = endTime[0] * 3600 + endTime[1] * 60 + endTime[2];
+    const startSeconds = startTime[0] * 3600 + startTime[1] * 60 + (startTime[2] || 0);
+    const endSeconds = endTime[0] * 3600 + endTime[1] * 60 + (endTime[2] || 0);
 
     if (now >= startDate && now <= endDate) {
         if (nowTime >= startSeconds && nowTime <= endSeconds) {
@@ -113,19 +68,28 @@ async function transformLeaderboardData(leaderboardData) {
         const rounds = player.rounds || [];
         
         // Determine player status
-        let status = player.status || "active"; // Default to active if status is not provided
+        let status = (player.status || "active").toLowerCase().trim();
         
-        // Set scoreToday based on status and round data
+        // Set scoreToday and totalThrough based on status
         let scoreToday;
         let totalThrough;
+        
         if (status === "cut") {
             scoreToday = "CUT";
+            totalThrough = "-"; // Add this for consistency
         } else if (status === "notstarted") { 
             scoreToday = "-";
-            totalThrough = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local);
+            totalThrough = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local || "TBD");
         } else {
-            scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par);
-            totalThrough = String(player.holes_played);
+            // For active players
+            scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par || 0);
+            
+            // Use holes_played directly, with fallback
+            if (player.holes_played === 18) {
+                totalThrough = "F";
+            } else {
+                totalThrough = player.holes_played ? String(player.holes_played) : "-";
+            }
         }
         
         return {
@@ -136,6 +100,7 @@ async function transformLeaderboardData(leaderboardData) {
             totalScore: player.total_to_par ?? 'N/A',
             scoreToday: scoreToday,
             totalThrough: totalThrough,
+            status: status,
             r1: rounds.find(round => round.round_number === 1)?.strokes ?? 'N/A',
             r2: rounds.find(round => round.round_number === 2)?.strokes ?? 'N/A',
             r3: rounds.find(round => round.round_number === 3)?.strokes ?? 'N/A',
@@ -181,44 +146,6 @@ async function filterLeaderboard(leaderboard) {
     console.log('Filtered players:', filtered.map(p => `${p.first_name} ${p.last_name}`));
     
     return filtered;
-}
-
-// Function to save the filtered leaderboard data to the 'Leaderboard' collection
-async function saveToLeaderboard(filteredLeaderboardTable) {
-    for (const player of filteredLeaderboardTable) {
-        const playerData = {
-            rank: player.rank,
-            player_id: player.player_id,
-            name: player.name,
-            country: player.country,
-            totalScore: player.totalScore,
-            scoreToday: player.scoreToday,
-            totalThrough: player.totalThrough,
-            r1: player.r1,
-            r2: player.r2,
-            r3: player.r3,
-            r4: player.r4,
-            totalStrokes: player.totalStrokes
-        };
-
-        try {
-            const existingPlayer = await wixData.query("Leaderboard")
-                .eq("player_id", player.player_id)
-                .find();
-
-            if (existingPlayer.items.length > 0) {
-                const playerId = existingPlayer.items[0]._id;
-                await wixData.update("Leaderboard", {
-                    _id: playerId,
-                    ...playerData
-                });
-            } else {
-                await wixData.insert("Leaderboard", playerData);
-            }
-        } catch (error) {
-            console.error(`Error saving player data for ${player.name}:`, error);
-        }
-    }
 }
 
 // Create currency formatter at the top level, outside all functions
@@ -280,34 +207,25 @@ $w.onReady(async function () {
         // Get tournament data and check if active
         const tournament = await tournamentData();
         if (await isWithinTournamentDates(tournament[0])) {
-            try {
+            try {                
                 const leaderboard = await fetchLeaderboardData(tournament[0]);
                 if (leaderboard) {
                     // Process leaderboard data
                     const filteredLeaderboard = await filterLeaderboard(leaderboard);
                     const transformedLeaderboard = await transformLeaderboardData(filteredLeaderboard);
-                    
-                    // Save to Leaderboard collection
-                    await saveToLeaderboard(transformedLeaderboard);
-                    
-                    // Update player winnings directly in GolfPicks
-                    await updatePlayerWinnings(transformedLeaderboard);
-                    
-                    // Make sure to refresh the dataset that populates the repeaters
-                    if ($w("#dataset5")) {
-                        $w("#dataset5").refresh();
-                        console.log("Dataset refreshed");
+
+                    // Save data to database
+                    try {
+                        const result = await saveLeaderboardData(transformedLeaderboard);
                         
-                        // If needed, you could force the repeaters to refresh their data display
-                        setTimeout(() => {
-                            if ($w("#betRepeater1")) $w("#betRepeater1").forceUpdate();
-                            if ($w("#betRepeater2")) $w("#betRepeater2").forceUpdate();
-                        }, 500);
+                        // Update winnings (only once)
+                        const winningsResult = await updatePlayerWinnings(transformedLeaderboard);
+                        
+                    } catch (error) {
+                        console.error('ERROR updating data:', error);
                     }
-                    
-                    console.log('Data updated successfully');
                 } else {
-                    console.log('No updates to the leaderboard.');
+                    console.log('No leaderboard data available.');
                 }
             } catch (error) {
                 console.error('Error running application:', error);
