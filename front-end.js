@@ -10,20 +10,30 @@ async function tournamentData() {
 
 // Function to check if the current date and time is within the tournament dates and times
 async function isWithinTournamentDates(tournament) {
+    // Get the current date in the user's local time
     const now = new Date();
     
-    // Fix the date handling by explicitly setting to local midnight
+    // Convert tournament dates from stored format to Date objects
     const startDate = new Date(tournament.startDate);
     startDate.setHours(0, 0, 0, 0);
     
     const endDate = new Date(tournament.endDate);
-    endDate.setHours(23, 59, 59, 999);  // Set to end of day
+    endDate.setHours(23, 59, 59, 999);
     
     const nowTime = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
     const startTime = tournament.startTime.split(':').map(Number);
     const endTime = tournament.endTime.split(':').map(Number);
     const startSeconds = startTime[0] * 3600 + startTime[1] * 60 + (startTime[2] || 0);
     const endSeconds = endTime[0] * 3600 + endTime[1] * 60 + (endTime[2] || 0);
+
+    // Debug output to see what's happening
+    console.log('Now:', now);
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Tournament times:', startSeconds, 'to', endSeconds);
+    console.log('Tournament dates:', startDate, 'to', endDate);
+    console.log('Date check:', now >= startDate && now <= endDate);
+    console.log('Time check:', nowTime >= startSeconds && nowTime <= endSeconds);
 
     if (now >= startDate && now <= endDate) {
         if (nowTime >= startSeconds && nowTime <= endSeconds) {
