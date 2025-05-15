@@ -158,6 +158,11 @@ async function filterLeaderboard(leaderboard) {
     return filtered;
 }
 
+// Format number as dollar amount with commas
+function formatNumber_AsDollar(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 // Create currency formatter at the top level, outside all functions
 const USDollar = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -165,110 +170,180 @@ const USDollar = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0
 });
 
-// Format number as dollar amount with commas
-function formatNumber_AsDollar(x) {
-    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-// Update setupWinningsDisplay function to use custom formatting
-function setupWinningsDisplay($item, itemData, winnings1Field, winnings2Field, textElementId, index) {
-    // Calculate total winnings
-    const value1 = Number(itemData[winnings1Field]) || 0;
-    const value2 = Number(itemData[winnings2Field]) || 0;
-    const total = value1 + value2;
-    
-    // Format as dollar amount
-    const formattedWinnings = "$" + formatNumber_AsDollar(total);
-    
-    // Set text on the element
-    if ($item(textElementId)) {
-        $item(textElementId).text = formattedWinnings;
+// Query data directly and populate repeaters
+async function refreshRepeaterData() {
+    try {
+        console.log('Directly refreshing repeater data from database...');
+        
+        // Fetch the latest data directly from the database
+        const golfPicksData = await wixData.query("GolfPicks").find();
+        console.log(`Fetched ${golfPicksData.items.length} items from GolfPicks collection`);
+        
+        // Check if we have repeaters to update
+        let repeater1Exists = false;
+        let repeater2Exists = false;
+        
+        try {
+            repeater1Exists = !!$w("#betRepeater1");
+            repeater2Exists = !!$w("#betRepeater2");
+        } catch (e) {
+            console.log('Error checking repeater existence:', e.message);
+        }
+        
+        // If repeaters exist, try to update their data
+        if (repeater1Exists) {
+            try {
+                console.log('Found betRepeater1, attempting to update...');
+                
+                // Filter data for first repeater (player1 and player2)
+                const repeater1Data = golfPicksData.items.map(item => ({
+                    _id: item._id,
+                    name: item.name,
+                    player1: item.player1,
+                    player2: item.player2,
+                    winnings1: item.winnings1 || 0,
+                    winnings2: item.winnings2 || 0
+                }));
+                
+                // Try different methods to update the repeater
+                if (typeof $w("#betRepeater1").data === 'object' && $w("#betRepeater1").data !== null) {
+                    // If repeater has a data property that can be set
+                    console.log('Setting betRepeater1 data directly');
+                    $w("#betRepeater1").data = repeater1Data;
+                } else if (typeof $w("#betRepeater1").setData === 'function') {
+                    // If repeater has setData method
+                    console.log('Using setData method on betRepeater1');
+                    $w("#betRepeater1").setData(repeater1Data);
+                } else {
+                    // Display each item's total for debugging
+                    console.log('Could not directly update betRepeater1 data');
+                    repeater1Data.forEach(item => {
+                        const total = (item.winnings1 || 0) + (item.winnings2 || 0);
+                        console.log(`${item.name}: $${formatNumber_AsDollar(total)}`);
+                    });
+                }
+                
+                // Set up item ready handler again
+                setupRepeater1();
+            } catch (err) {
+                console.error('Error updating betRepeater1:', err);
+            }
+        }
+        
+        if (repeater2Exists) {
+            try {
+                console.log('Found betRepeater2, attempting to update...');
+                
+                // Filter data for second repeater (player3 and player4)
+                const repeater2Data = golfPicksData.items.map(item => ({
+                    _id: item._id,
+                    name: item.name,
+                    player3: item.player3,
+                    player4: item.player4,
+                    winnings3: item.winnings3 || 0,
+                    winnings4: item.winnings4 || 0
+                }));
+                
+                // Try different methods to update the repeater
+                if (typeof $w("#betRepeater2").data === 'object' && $w("#betRepeater2").data !== null) {
+                    // If repeater has a data property that can be set
+                    console.log('Setting betRepeater2 data directly');
+                    $w("#betRepeater2").data = repeater2Data;
+                } else if (typeof $w("#betRepeater2").setData === 'function') {
+                    // If repeater has setData method
+                    console.log('Using setData method on betRepeater2');
+                    $w("#betRepeater2").setData(repeater2Data);
+                } else {
+                    // Display each item's total for debugging
+                    console.log('Could not directly update betRepeater2 data');
+                    repeater2Data.forEach(item => {
+                        const total = (item.winnings3 || 0) + (item.winnings4 || 0);
+                        console.log(`${item.name}: $${formatNumber_AsDollar(total)}`);
+                    });
+                }
+                
+                // Set up item ready handler again
+                setupRepeater2();
+            } catch (err) {
+                console.error('Error updating betRepeater2:', err);
+            }
+        }
+        
+        // If data is updated but repeaters can't be refreshed
+        if ((repeater1Exists || repeater2Exists) && golfPicksData.items.length > 0) {
+            console.log('Data updated in database.');
+            console.log('Current winnings in database:');
+            golfPicksData.items.forEach(item => {
+                const bet1Total = (item.winnings1 || 0) + (item.winnings2 || 0);
+                const bet2Total = (item.winnings3 || 0) + (item.winnings4 || 0);
+                console.log(`${item.name}: Bet1=$${formatNumber_AsDollar(bet1Total)}, Bet2=$${formatNumber_AsDollar(bet2Total)}`);
+            });
+            
+            // Try to notify user
+            try {
+                if ($w("#updateMessage")) {
+                    $w("#updateMessage").text = "Data updated. Please refresh page to see latest winnings.";
+                    $w("#updateMessage").show();
+                }
+            } catch (err) {
+                // Ignore if element doesn't exist
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error refreshing repeater data:', error);
+        return false;
     }
 }
 
-// Update setupRepeaters function to use the helper
-function setupRepeaters() {
+// Setup for first repeater
+function setupRepeater1() {
     try {
-        // Configure first repeater if it exists
         if ($w("#betRepeater1")) {
             $w("#betRepeater1").onItemReady(($item, itemData, index) => {
-                setupWinningsDisplay($item, itemData, "winnings1", "winnings2", "#bet1TotalText", index);
+                const value1 = Number(itemData.winnings1) || 0;
+                const value2 = Number(itemData.winnings2) || 0;
+                const total = value1 + value2;
+                
+                const formattedWinnings = "$" + formatNumber_AsDollar(total);
+                
+                if ($item("#bet1TotalText")) {
+                    $item("#bet1TotalText").text = formattedWinnings;
+                }
             });
         }
-        
-        // Configure second repeater if it exists
-        if ($w("#betRepeater2")) {
-            $w("#betRepeater2").onItemReady(($item, itemData, index) => {
-                setupWinningsDisplay($item, itemData, "winnings3", "winnings4", "#bet2TotalText", index);
-            });
-        }
-        
-        console.log('Repeaters successfully configured');
     } catch (error) {
-        console.error('Error setting up repeaters:', error);
+        console.error('Error setting up betRepeater1:', error);
     }
 }
 
-// Updated function to refresh the repeaters using dataset approach
-function refreshRepeaters() {
+// Setup for second repeater
+function setupRepeater2() {
     try {
-        console.log('Attempting to refresh repeaters via datasets...');
-        
-        // Try to refresh any datasets that might be bound to the repeaters
-        let refreshed = false;
-        
-        // Common dataset names in Wix (try all possible dataset names)
-        const possibleDatasets = [
-            "#dataset1", "#dataset2", "#dataset3", "#golfPicksDataset", 
-            "#betRepeater1Dataset", "#betRepeater2Dataset", "#leaderboardDataset",
-            "#GolfPicksDataset", "#golfDataset"
-        ];
-        
-        // Try to find and refresh each possible dataset
-        for (const datasetId of possibleDatasets) {
-            try {
-                if ($w(datasetId)) {
-                    console.log(`Found dataset ${datasetId}, attempting to refresh...`);
-                    $w(datasetId).refresh();
-                    refreshed = true;
-                    console.log(`Successfully refreshed dataset ${datasetId}`);
-                }
-            } catch (err) {
-                // Silently ignore if dataset doesn't exist
-            }
-        }
-        
-        // If we couldn't find a dataset to refresh, try to refresh parent datasets
-        if (!refreshed) {
-            try {
-                if ($w("#dynamicDataset")) {
-                    $w("#dynamicDataset").refresh();
-                    refreshed = true;
-                    console.log('Refreshed dynamicDataset');
-                }
-            } catch (err) {
-                // Ignore
-            }
-            
-            // As a last resort, try to refresh the page through a message to the user
-            if (!refreshed) {
-                console.log('Could not find any datasets to refresh. Data has been updated in the database.');
-                console.log('Manual page refresh may be needed to see updated data.');
+        if ($w("#betRepeater2")) {
+            $w("#betRepeater2").onItemReady(($item, itemData, index) => {
+                const value3 = Number(itemData.winnings3) || 0;
+                const value4 = Number(itemData.winnings4) || 0;
+                const total = value3 + value4;
                 
-                // Optionally, show a message to the user
-                try {
-                    if ($w("#updateMessage")) {
-                        $w("#updateMessage").text = "Data updated. Refresh page to see latest results.";
-                        $w("#updateMessage").show();
-                    }
-                } catch (err) {
-                    // Ignore if element doesn't exist
+                const formattedWinnings = "$" + formatNumber_AsDollar(total);
+                
+                if ($item("#bet2TotalText")) {
+                    $item("#bet2TotalText").text = formattedWinnings;
                 }
-            }
+            });
         }
     } catch (error) {
-        console.error('Error refreshing datasets:', error);
+        console.error('Error setting up betRepeater2:', error);
     }
+}
+
+// Setup both repeaters
+function setupRepeaters() {
+    setupRepeater1();
+    setupRepeater2();
+    console.log('Repeaters successfully configured');
 }
 
 $w.onReady(async function () {
@@ -299,8 +374,8 @@ $w.onReady(async function () {
                         
                         if (winningsResult.success) {
                             console.log('Winnings updated successfully, attempting to refresh display...');
-                            // After updating the database, try to refresh any bound datasets
-                            refreshRepeaters();
+                            // After updating the database, try to directly refresh the repeaters
+                            await refreshRepeaterData();
                         } else {
                             console.error('Failed to update winnings:', winningsResult.error);
                         }
