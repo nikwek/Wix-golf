@@ -83,13 +83,19 @@ async function transformLeaderboardData(leaderboardData) {
         // Set scoreToday and totalThrough based on status
         let scoreToday;
         let totalThrough;
+        let teeTime;
+        teeTime = "00:00";
+        teeTime = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local || "TBD");
         
         if (status === "cut") {
             scoreToday = "CUT";
             totalThrough = "-"; // Add this for consistency
         } else if (status === "notstarted") { 
             scoreToday = "-";
-            totalThrough = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local || "TBD");
+            totalThrough = teeTime;
+        } else if (status === "between rounds") { 
+            scoreToday = "-";
+            totalThrough = teeTime;
         } else {
             // For active players
             scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par || 0);
@@ -101,6 +107,7 @@ async function transformLeaderboardData(leaderboardData) {
                 totalThrough = player.holes_played ? String(player.holes_played) : "-";
             }
         }
+        console.log(`status: ${status} | totalThrough: ${totalThrough}`);
         
         return {
             rank: player.position ?? 'N/A',
