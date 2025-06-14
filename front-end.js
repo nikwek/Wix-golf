@@ -84,8 +84,8 @@ async function transformLeaderboardData(leaderboardData) {
         let scoreToday;
         let totalThrough;
         let teeTime;
-        teeTime = "00:00";
-        teeTime = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local || "TBD");
+        teeTime = "--:--";
+        teeTime = String(rounds.find(round => round.round_number === player.current_round)?.tee_time_local || "--:--");
         
         if (status === "cut") {
             scoreToday = "CUT";
@@ -96,6 +96,9 @@ async function transformLeaderboardData(leaderboardData) {
         } else if (status === "between rounds") { 
             scoreToday = "-";
             totalThrough = teeTime;
+        } else if (status === "complete") { 
+            totalThrough = "F";
+            scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par || 0);
         } else {
             // For active players
             scoreToday = String(rounds.find(round => round.round_number === player.current_round)?.total_to_par || 0);
@@ -107,7 +110,7 @@ async function transformLeaderboardData(leaderboardData) {
                 totalThrough = player.holes_played ? String(player.holes_played) : "-";
             }
         }
-        console.log(`status: ${status} | totalThrough: ${totalThrough}`);
+        console.log(`status: ${status} | totalThrough: ${totalThrough} | Score Today: ${scoreToday}`);
         
         return {
             rank: player.position ?? 'N/A',
