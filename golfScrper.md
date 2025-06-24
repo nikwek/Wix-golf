@@ -1,6 +1,6 @@
 # Install Golf Leaderboard Scraper
 
-Here's how you can get your golf_leaderboard_scraper script running on your new, updated Raspberry Pi:
+Here's how you can get your golf_leaderboard_scraper script running on your Raspberry Pi (using Raspberry Pi 2 version B with 32 bit OS):
 
 ## Install Node Version Manager (nvm):
 nvm is still the best way to manage Node.js versions. Open your terminal on the new Raspberry Pi and run:
