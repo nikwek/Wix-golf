@@ -49,3 +49,16 @@ sudo apt install chromium-browser
 ## Run the script:
 
 ```node golfScraper.js```
+
+## How it works
+
+Dynamically Read Headers: 
+It first inspects the <th> (table header) elements to understand which columns are actually present on the page.
+
+Map to Desired Format: 
+It then intelligently maps the found columns to your preferred output format: 
+['POS', 'PLAYER', 'SCORE', 'R1', 'R2', 'R3', 'R4', 'TOT'].
+
+If a "TEE TIME" column is found, its data will be mapped to the "R1" column in your output.
+The "EARNINGS" column will be ignored if present.
+Columns like "POS", "SCORE", "R2", "R3", "R4", and "TOT" will output an empty string ('') if they are not present on the page (e.g., before the tournament starts).
