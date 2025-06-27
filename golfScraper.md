@@ -1,3 +1,16 @@
+# Golf Shenanigans on Wix
+
+The bash script `leaderboard.sh` does the following:
+* Gets golf leaderboard data from ESPN using `golfscraper.js` 
+* Posts the data to wix with `wixPoster.py`
+
+The wix site uses `espn-frontend.js` and `espn-backend.js` to process the data and feed it into repeaters / tables.
+
+Cron setup
+`*/5 * * * * /home/nik/espn-scraper/leaderboard.sh >> /home/nik/espn-scraper/leaderboard_update.log 2>&1`
+
+Check logs with `tail -f /home/nik/espn-scraper/leaderboard_update.log`
+
 # Install Golf Leaderboard Scraper
 
 Here's how you can get your golf_leaderboard_scraper script running on your Raspberry Pi (using Raspberry Pi 2 version B with 32 bit OS):
