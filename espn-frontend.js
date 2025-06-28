@@ -110,6 +110,17 @@ async function refreshRepeaterData() {
 
 $w.onReady(async function () {
     try {
+        // Show/hide betRepeater2 based on GolfPicks player3/player4
+        const picksResult = await wixData.query("GolfPicks")
+            .isNotEmpty("player3")
+            .isNotEmpty("player4")
+            .find();
+        if (picksResult.items.length > 0) {
+            $w("#bet2Section").expand();
+        } else {
+            $w("#bet2Section").collapse();
+        }
+
         setupRepeaters();
         const leaderboard = await fetchLeaderboardData();
         if (leaderboard) {

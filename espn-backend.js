@@ -54,9 +54,9 @@ export async function updateGolfLeaderboardCollection(filteredLeaderboard) {
 
 // Utility: Normalize rank (e.g., "T1" -> 1, "2" -> 2)
 function normalizeRank(pos) {
-    if (!pos) return null;
+    if (!pos) return 100; // treat missing as "bottom"
     const match = pos.match(/\d+/);
-    return match ? parseInt(match[0], 10) : null;
+    return match ? parseInt(match[0], 10) : 100;
 }
 
 // Update player winnings in GolfPicks table using ESPNLeaderboard data, handling ties
@@ -103,7 +103,7 @@ export async function updatePlayerWinnings(leaderboard) {
             for (let j = 0; j < numTied; j++) {
                 totalWinnings += winningsMap.get(rank + j) || 0;
             }
-            const avgWinnings = numTied ? totalWinnings / numTied : 0;
+            const avgWinnings = numTied ? Math.round(totalWinnings / numTied) : 0;
             // Assign average winnings to all tied ranks
             for (let j = 0; j < numTied; j++) {
                 rankToAvgWinnings[rank + j] = avgWinnings;
