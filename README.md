@@ -78,7 +78,6 @@ sudo apt install chromium-browser
 ```
 
 ## Run the shell script:
+... frome within the directory you created:
+```./leaderboard.sh```
 
-```/home/<username>/<directory>/leaderboard.sh```
-
-... to test that it works.
