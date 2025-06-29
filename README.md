@@ -1,121 +1,84 @@
-# Golf Tournament Application: Technical Documentation
+# Golf Shenanigans on Wix
 
-## Overview
-This application provides a real-time golf tournament game platform where participants select golfers, and the application tracks their performance in live tournaments, calculating potential winnings based on current standings.
+The bash script `leaderboard.sh` does the following:
+* Gets golf leaderboard data from ESPN using `golfscraper.js` 
+* Posts the data to wix with `wixPoster.py`
 
-## System Architecture
+The wix site uses `espn-frontend.js` and `espn-backend.js` to process the data and feed it into repeaters / tables.
 
-The application consists of front-end and back-end JavaScript components that interact with Wix collections and an external golf data API (RapidAPI).
+## Tournament setup
+Edit `config.json` on the Raspberry Pi and save the tournament URL.
+Edit Golf Tournament Data collection in Wix to capture the tournament name. 
 
-### Data Collections
+## Cron setup
+`*/5 * * * * /home/<username>/<directory>/leaderboard.sh >> /home/<username>/<directory>/leaderboard_update.log 2>&1`
 
-The system uses four main Wix collections:
+Check logs with `tail -f /home/<username>/<directory>/leaderboard_update.log`
 
-1. **Golf Leaderboard**: Stores tournament leaderboard data
-   - Fields: Rank, Player ID, Name, Country, SCORE, TODAY, THROUGH, R1, R2, R3, R4, TOT
+# Installation
 
-2. **Golf Picks**: Stores participant selections and calculated winnings
-   - Fields: Name, Player 1, Player 2, Player 3, Player 4, Winnings 1, Winnings 2, Winnings 3, Winnings 4
+Here's how you can get your golf_leaderboard_scraper script running on your Raspberry Pi (using Raspberry Pi 2 version B with 32 bit OS):
 
-3. **Golf Tournament Data**: Stores tournament configuration
-   - Fields: Name, Tournament ID, Start Date, End Date, Start Time, End Time
+## Install Node Version Manager (nvm):
+nvm is still the best way to manage Node.js versions. Open your terminal on the new Raspberry Pi and run:
 
-4. **Golf Winnings**: Maps tournament ranks to prize money
-   - Fields: Rank, Winnings
+```curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash```
 
-### Application Flow
+(You might want to check the nvm GitHub page for the very latest v number to replace v0.39.7).
+After the installation, close and reopen your terminal or run source ~/.bashrc (if you are using bash) to load nvm.
 
-1. **Tournament Time Check**
-   The application checks if the current date and time falls within the tournament's configured dates and active hours. This prevents unnecessary API calls outside tournament hours.
+## Install a supported Node.js LTS version:
+Node.js 20 is the current LTS version and should be fully compatible with the latest Raspberry Pi OS (64-bit).
 
-   ```javascript
-   async function isWithinTournamentDates(tournament) {
-       // Date & time comparison logic to determine if tournament is active
-   }
-   ```
+```
+nvm install 20
+nvm use 20
+nvm alias default 20
+```
+Verify the installation: node -v and npm -v.
 
-2. **External Data Retrieval**
-   When the tournament is active, the application fetches current leaderboard data from the RapidAPI golf data service. A rate limiter ensures the application stays within the API's free tier limits.
+## Create your project directory and save the script:
 
-   ```javascript
-   export const fetchLeaderboardData = async (tournament) => {
-       // Fetch data from RapidAPI with rate limiting
-   }
-   ```
+1.  **Create a New Directory for the Project**
+    Open your terminal or command prompt and create a new directory for your project. You can name it `wix-golf` or anything else you prefer.
 
-3. **Data Processing**
-   The application processes and transforms the raw API data into a structured format, handling special cases like players who have been cut, not started, or finished their rounds.
+    ```bash
+    mkdir wix-golf
+    ```
 
-   ```javascript
-   async function transformLeaderboardData(leaderboardData) {
-       // Transform raw data into structured format
-   }
-   ```
+2.  **Navigate into the Project Directory**
+    Change your current directory to the newly created `wix-golf` folder.
 
-4. **Player Filtering**
-   The system filters the leaderboard to only include players that participants have selected, using name matching with special character normalization.
+    ```bash
+    cd wix-golf
+    ```
 
-   ```javascript
-   async function filterLeaderboard(leaderboard) {
-       // Filter leaderboard to only include relevant players
-   }
-   ```
+3.  **Clone the GitHub Repository**
+    Now that you are inside the `wix-golf` directory, clone the project files from the GitHub repository. This will download all the code into your current directory.
 
-5. **Winnings Calculation**
-   For each player in the filtered leaderboard, the system calculates potential winnings based on their current rank and the corresponding prize money in the Golf Winnings collection.
+    ```bash
+    git clone [https://github.com/nikwek/Wix-golf.git](https://github.com/nikwek/Wix-golf.git) .
+    ```
+    * The `.` (dot) at the end of the `git clone` command is important. It tells Git to clone the contents of the repository directly into the current directory (`wix-golf`), rather than creating a nested `Wix-golf` folder inside it.
 
-   ```javascript
-   export async function updatePlayerWinnings(filteredLeaderboard) {
-       // Calculate and update winnings for each participant
-   }
-   ```
+## Install Puppeteer and Cheerio:
 
-6. **Display Update**
-   The application configures repeaters to display participant data with formatted winnings totals.
+```npm install puppeteer```
 
-   ```javascript
-   function setupRepeaters() {
-       // Configure repeaters to display participant data and winnings
-   }
-   ```
+This will install Puppeteer and its compatible Chromium browser.
 
-## Technical Features
+```npm install cheerio```
 
-### Time Zone Handling
-The application works with the user's local time zone. Dates and times stored in Wix collections are automatically converted to the local time zone when retrieved.
+## Install Chromium on Raspberry Pi:
+Even though Puppeteer downloads a browser, it's often more stable to use the system's own Chromium on a Raspberry Pi.
 
-### Rate Limiting
-To prevent excessive API usage, the application implements a token bucket rate limiter, allowing only 4 requests per hour (matching the RapidAPI free tier limit).
-
-```javascript
-const limiter = new RateLimiter({ tokensPerInterval: 4, interval: "hour" });
+```
+sudo apt update
+sudo apt install chromium-browser
 ```
 
-### Parallel Game Support
-The application supports two parallel games, allowing each participant to select up to four players (two for each game). Winnings are calculated and displayed separately for each game.
+## Run the shell script:
 
-### Special Character Handling
-The player name matching algorithm normalizes special characters to ensure players with accented names are correctly matched.
+```/home/<username>/<directory>/leaderboard.sh```
 
-```javascript
-const normalizedName = fullName.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-```
-
-### Currency Formatting
-Winnings are consistently formatted as USD currency values with appropriate formatting.
-
-```javascript
-function formatNumber_AsDollar(x) {
-    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-```
-
-## Implementation Notes
-
-1. The system is designed to minimize API calls by only making requests during tournament hours
-2. Error handling is implemented throughout to ensure the application continues to function even if some operations fail
-3. Extensive logging provides visibility into the application's operation for debugging
-4. The application handles various player statuses (active, cut, not started) appropriately
-5. Data is cached in Wix collections to reduce API dependency and improve performance
-
-This architecture allows for a low-maintenance, cost-effective tournament game system that automatically updates as tournament standings change, providing participants with real-time updates on their potential winnings.
+... to test that it works.

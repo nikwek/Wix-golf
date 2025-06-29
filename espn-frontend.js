@@ -132,6 +132,12 @@ $w.onReady(async function () {
             // 3. Refresh UI
             await refreshRepeaterData();
         }
+
+        const leaderboardResult = await wixData.query("Leaderboard").ascending("position").find();
+        if ($w("#leaderboardTable")) {
+            $w("#leaderboardTable").rows = leaderboardResult.items;
+        }
+
     } catch (error) {
         console.error("Error in onReady:", error);
     }
