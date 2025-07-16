@@ -133,11 +133,24 @@ $w.onReady(async function () {
             await refreshRepeaterData();
         }
 
-        const leaderboardResult = await wixData.query("Leaderboard").ascending("position").find();
+        const leaderboardResult = await wixData.query("Leaderboard").find();
+        let rows = leaderboardResult.items;
+
+        // If pre-tournament (all position == 100), sort by R1 (tee time)
+        if (rows.every(item => item.position === 100)) {
+            rows = rows.sort((a, b) => {
+                // Sort by R1 (assuming tee times are in a sortable format, e.g., "8:00 AM")
+                return a.r1.localeCompare(b.r1);
+            });
+        } else {
+            // Otherwise, sort by position
+            rows = rows.sort((a, b) => a.position - b.position);
+        }
+
         if ($w("#leaderboardTable")) {
-            // Remove duplicates by name (or use _id if available)
+            // Remove duplicates by name
             const seen = new Set();
-            const uniqueRows = leaderboardResult.items.filter(item => {
+            const uniqueRows = rows.filter(item => {
                 if (seen.has(item.name)) return false;
                 seen.add(item.name);
                 return true;
