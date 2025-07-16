@@ -60,12 +60,23 @@ async function scrapeGolfLeaderboard() {
             }
         });
 
+        // Detect if "TEE TIME" is present and "R1" is not (pre-tournament mode)
+        const hasTeeTime = headerNameToIndex.hasOwnProperty('TEE TIME');
+        const hasR1 = headerNameToIndex.hasOwnProperty('R1');
+        const useTeeTimeForR1 = hasTeeTime && !hasR1;
+
         rows.each((i, row) => {
             const columns = $(row).find('td');
             let rowOutputData = [];
             desiredOutputHeaders.forEach(desiredHeader => {
                 let value = '';
-                const tdIdx = headerNameToIndex[desiredHeader];
+                let tdIdx = headerNameToIndex[desiredHeader];
+
+                // If pre-tournament, put TEE TIME in R1
+                if (desiredHeader === 'R1' && useTeeTimeForR1) {
+                    tdIdx = headerNameToIndex['TEE TIME'];
+                }
+
                 if (tdIdx !== undefined && tdIdx < columns.length) {
                     const columnElement = $(columns[tdIdx]);
                     if (desiredHeader === 'PLAYER') {

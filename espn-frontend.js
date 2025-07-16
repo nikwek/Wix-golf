@@ -135,7 +135,14 @@ $w.onReady(async function () {
 
         const leaderboardResult = await wixData.query("Leaderboard").ascending("position").find();
         if ($w("#leaderboardTable")) {
-            $w("#leaderboardTable").rows = leaderboardResult.items;
+            // Remove duplicates by name (or use _id if available)
+            const seen = new Set();
+            const uniqueRows = leaderboardResult.items.filter(item => {
+                if (seen.has(item.name)) return false;
+                seen.add(item.name);
+                return true;
+            });
+            $w("#leaderboardTable").rows = uniqueRows;
         }
 
     } catch (error) {
