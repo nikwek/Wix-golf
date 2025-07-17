@@ -64,20 +64,19 @@ export async function updatePlayerWinnings(leaderboard) {
     try {
         // Fetch GolfWinnings data
         const golfWinningsData = await wixData.query("GolfWinnings").limit(1000).find();
-        // Map: rank (number) -> winnings (number)
         const winningsMap = new Map();
         golfWinningsData.items.forEach(item => {
-            const rankNum = parseInt(item.rank, 10);
-            if (!isNaN(rankNum)) {
-                winningsMap.set(rankNum, Number(item.winnings.toString().replace(/[$,]/g, '')) || 0);
-            }
+            winningsMap.set(item.rank, item.winnings);
         });
 
-        // Map player names to their pos/rank from leaderboard
+        // Map player names to their pos/rank from leaderboard (normalized)
         const playerNameToPos = new Map();
         leaderboard.forEach(row => {
-            playerNameToPos.set(row.player, row.pos);
+            playerNameToPos.set((row.player || '').trim().toLowerCase(), row.pos);
         });
+
+        // Log all ESPN leaderboard names
+        console.log("ESPN Leaderboard playerNameToPos keys:", Array.from(playerNameToPos.keys()));
 
         // Build a map: normalizedRank -> [players]
         const rankToPlayers = {};
@@ -91,40 +90,56 @@ export async function updatePlayerWinnings(leaderboard) {
 
         // For each rank, calculate the average winnings for ties
         const rankToAvgWinnings = {};
-        // Get all unique ranks, sorted ascending
         const uniqueRanks = Object.keys(rankToPlayers).map(Number).sort((a, b) => a - b);
         let i = 0;
         while (i < uniqueRanks.length) {
             const rank = uniqueRanks[i];
             const tiedPlayers = rankToPlayers[rank];
             const numTied = tiedPlayers.length;
-            // Sum winnings for all tied positions
             let totalWinnings = 0;
             for (let j = 0; j < numTied; j++) {
                 totalWinnings += winningsMap.get(rank + j) || 0;
             }
             const avgWinnings = numTied ? Math.round(totalWinnings / numTied) : 0;
-            // Assign average winnings to all tied ranks
             for (let j = 0; j < numTied; j++) {
                 rankToAvgWinnings[rank + j] = avgWinnings;
             }
             i += numTied;
         }
 
+        // Log the winnings map and average winnings
+        console.log("winningsMap:", Array.from(winningsMap.entries()));
+        console.log("rankToAvgWinnings:", rankToAvgWinnings);
+
         // Fetch all picks
         const golfPicksData = await wixData.query("GolfPicks").limit(1000).find();
 
-        // Update each pick with winnings
+        // Update each pick with winnings, logging details
         for (const pick of golfPicksData.items) {
-            const rank1 = normalizeRank(playerNameToPos.get(pick.player1));
-            const rank2 = normalizeRank(playerNameToPos.get(pick.player2));
-            const rank3 = pick.player3 ? normalizeRank(playerNameToPos.get(pick.player3)) : null;
-            const rank4 = pick.player4 ? normalizeRank(playerNameToPos.get(pick.player4)) : null;
+            // Normalize names for lookup
+            const norm1 = (pick.player1 || '').trim().toLowerCase();
+            const norm2 = (pick.player2 || '').trim().toLowerCase();
+            const norm3 = pick.player3 ? (pick.player3 || '').trim().toLowerCase() : null;
+            const norm4 = pick.player4 ? (pick.player4 || '').trim().toLowerCase() : null;
 
-            const winnings1 = rank1 ? (rankToAvgWinnings[rank1] || 0) : 0;
-            const winnings2 = rank2 ? (rankToAvgWinnings[rank2] || 0) : 0;
-            const winnings3 = rank3 ? (rankToAvgWinnings[rank3] || 0) : 0;
-            const winnings4 = rank4 ? (rankToAvgWinnings[rank4] || 0) : 0;
+            // Lookup rank
+            const rank1 = normalizeRank(playerNameToPos.get(norm1));
+            const rank2 = normalizeRank(playerNameToPos.get(norm2));
+            const rank3 = norm3 ? normalizeRank(playerNameToPos.get(norm3)) : null;
+            const rank4 = norm4 ? normalizeRank(playerNameToPos.get(norm4)) : null;
+
+            // Lookup winnings with fallback
+            const winnings1 = rank1 ? (rankToAvgWinnings[rank1] !== undefined ? rankToAvgWinnings[rank1] : winningsMap.get(rank1) || 0) : 0;
+            const winnings2 = rank2 ? (rankToAvgWinnings[rank2] !== undefined ? rankToAvgWinnings[rank2] : winningsMap.get(rank2) || 0) : 0;
+            const winnings3 = rank3 ? (rankToAvgWinnings[rank3] !== undefined ? rankToAvgWinnings[rank3] : winningsMap.get(rank3) || 0) : 0;
+            const winnings4 = rank4 ? (rankToAvgWinnings[rank4] !== undefined ? rankToAvgWinnings[rank4] : winningsMap.get(rank4) || 0) : 0;
+
+            // Log the pick and winnings
+            console.log(`Pick: ${pick.name}`);
+            console.log(`  player1: "${pick.player1}" -> "${norm1}", rank1: ${rank1}, winnings1: ${winnings1}`);
+            console.log(`  player2: "${pick.player2}" -> "${norm2}", rank2: ${rank2}, winnings2: ${winnings2}`);
+            if (pick.player3) console.log(`  player3: "${pick.player3}" -> "${norm3}", rank3: ${rank3}, winnings3: ${winnings3}`);
+            if (pick.player4) console.log(`  player4: "${pick.player4}" -> "${norm4}", rank4: ${rank4}, winnings4: ${winnings4}`);
 
             const updatedPick = {
                 ...pick,
